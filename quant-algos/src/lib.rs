@@ -1,8 +1,10 @@
 //use nalgebra as na;
 pub mod zq;
+pub mod bitcodec;
 use core::fmt;
 
 use zq::{Zq, dot, add};
+use bitcodec::BitCodec;
 use rand::{Rng, thread_rng};
 use rand_distr::{Distribution, Normal};
 
@@ -29,7 +31,8 @@ pub struct LWESystem {
 
 impl LWESystem {
     /* --- Key Generation Functions --- */
-    //Uses Crypto safe rust thread_rng to generate both private and public keys
+    /// Uses Crypto safe rust thread_rng to generate both private and public keys
+    /// key_gen assumes safe n, m, q, and sigma have been chosen in accordance to Regev's correctness proof
     pub fn key_gen(n: usize, m: usize, q: u64, sigma: f64) -> Self {
         Self::key_gen_with_rng(&mut thread_rng(), n, m, q, sigma)
     }
@@ -72,6 +75,9 @@ impl LWESystem {
     pub fn public_key(&self) -> &PubKeyTy { &self.public_key }
     pub fn params(&self) -> Params { self.params }
 
+    //ONLY FOR DEBUGGING/TESTING DO NOT EXPOSE TO PUBLIC
+    pub fn private_key(&self) -> &PrivKeyTy { &self.private_key }
+
     /* --- Encryption and Decryption Functions --- */
     //Encrypt one bit (x_bit=true => x=1 and x_bit=false => x=0)
     //Doesn't require knowledge of private_key
@@ -104,6 +110,13 @@ impl LWESystem {
         (a,b)
     }
 
+    //Encrypt bitvector
+    //To encrypt structures/types, encode them with BitCodec: see src/bitcodec.rs
+    pub fn encrypt<BitTy: BitCodec>(public_key: &PubKeyTy, params: Params, bit_data: BitTy) -> Vec<LWEBitCiphertext>{
+        let bitvec = bit_data.to_bits();
+        bitvec.iter().map(|&x_bit| Self::encrypt_bit(public_key, params, x_bit)).collect()
+    }
+
     //Decrypt one bit (ret_bit=true => x=1 and ret_bit=false => x=0)
     pub fn decrypt_bit(&self, bit_ciphertext: LWEBitCiphertext) -> bool {
         let q: u64 = self.params.q;
@@ -111,9 +124,19 @@ impl LWESystem {
         let (a, b) = bit_ciphertext;
         let dot_prod = dot(&a, &self.private_key, q);
         let res = b - dot_prod;
-        eprintln!("res.value() = {}", res.value()); // TEMP
 
         res.value() >= q/4 && res.value() <= (3*q)/4
+    }
+
+    //Decrypt Cipherstring
+    //To Reconstruct more complex structures, reconstruct from their bitvector form with BitCodec: see src/bitcodec.rs
+    pub fn decrypt<BitTy: BitCodec>(&self, cipher_string: Vec<LWEBitCiphertext>) -> BitTy {
+        let bit_vec: Vec<bool> = cipher_string
+            .iter()
+            .map(|bit_c| self.decrypt_bit(bit_c.clone()))
+            .collect();
+        BitCodec::from_bits(&bit_vec).expect("Malformed cipher string, unable to reconstruct from BitType.
+        Either cipher string is trying to decrypt from incorrect BitTy, or ciphertext is corrupted.")
     }
 
     /* Enc and Dec Helpers */

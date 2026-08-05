@@ -1,3 +1,6 @@
+/// Rust implementation of a field on (usually) a prime q on the positive unsigned-integers
+/// Simple operations are supported (add, sub, mul, neg, rem)
+/// Also simple dot and add is supported for vectors of same length of type Vec<Zq<u64>>
 
 use std::fmt;
 use std::ops::{Add, Mul, Neg, Rem, Sub};
@@ -134,10 +137,10 @@ impl<T: ZqLimb> fmt::Debug for Zq<T> {
 }
 
 //Custom Dot product for 2 (1xn) vectors of same length with same moduli
-pub fn dot(lhs: &[Zq<u64>], rhs: &[Zq<u64>], q: u64) -> Zq<u64> {
+pub fn dot<T: ZqLimb>(lhs: &[Zq<T>], rhs: &[Zq<T>], q: T) -> Zq<T> {
     debug_assert_eq!(lhs.len(), rhs.len()); //Must be same length of vectors
-    let r: Zq<u64> = lhs.iter().enumerate()
-        .fold(Zq::new(0, q), |acc, (i, &l_v)| {
+    let r: Zq<T> = lhs.iter().enumerate()
+        .fold(Zq::new(T::from_i128(0), q), |acc, (i, &l_v)| {
             let r_v = rhs[i];
             acc + (r_v * l_v)
         });
@@ -145,9 +148,9 @@ pub fn dot(lhs: &[Zq<u64>], rhs: &[Zq<u64>], q: u64) -> Zq<u64> {
 }
 
 //Custom add for 2 (1xn) vectors of same length with same moduli
-pub fn add(lhs: &[Zq<u64>], rhs: &[Zq<u64>]) -> Vec<Zq<u64>> {
+pub fn add<T: ZqLimb>(lhs: &[Zq<T>], rhs: &[Zq<T>]) -> Vec<Zq<T>> {
     debug_assert_eq!(lhs.len(), rhs.len()); //Must be same length of vectors
-    let r: Vec<Zq<u64>> = lhs.iter().enumerate()
+    let r: Vec<Zq<T>> = lhs.iter().enumerate()
         .map(|(i, &l_v)| {
             let r_v = rhs[i];
             r_v + l_v

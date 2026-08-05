@@ -33,7 +33,9 @@ Thus this ends the intution section and implemented algorithms are listed below:
 ---------
 
 ### Implemented Algorithms:
-[ ] - Regev's Proposed Public Key Cryptosystem (Learning With Errors)
+[x] - Regev's Proposed Public Key Cryptosystem (Learning With Errors)
+    [x] - String encryption/decryption support
+    [ ] - Benchmarking
 
 ## Descriptions
 

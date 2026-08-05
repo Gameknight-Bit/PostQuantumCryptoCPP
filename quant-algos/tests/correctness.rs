@@ -129,3 +129,25 @@ fn single_row_ciphertext_decrypts_as_zero() {
         assert!(decoded == false, "row {i} failed as a standalone ciphertext");
     }
 }
+
+#[test]
+fn string_check() {
+    let mut rng = ChaCha20Rng::seed_from_u64(42);
+    let (n, m, q, sigma) = toy_params();
+    let lwe = LWESystem::key_gen_with_rng(&mut rng, n, m, q, sigma);
+
+    macro_rules! TEST_STR {
+        () => { "This is a very long string that we want to \
+                split across multiple lines in our source code \
+                so it does not cause formatting issues.".to_string() };
+    }
+
+    let ct = LWESystem::encrypt(lwe.public_key(), lwe.params(), TEST_STR!().clone());
+    println!("{:?}", ct);
+    let decrypted: String = lwe.decrypt(ct);
+    println!("{:?}", decrypted);
+    if decrypted != TEST_STR!() {
+        eprintln!("Expected '{}' but got '{}' instead", TEST_STR!(), decrypted);
+        assert_ne!(decrypted, TEST_STR!());
+    }
+}
