@@ -1,6 +1,6 @@
 # Post Quantum Cryptoschemes
 
-This small project is/was geared to my own learning of *Post Quantum Cryptography Algorithms*. Thus, as I learn more about these very cool algorithms I intend to add more implementations :)
+This small project is/was geared to my own learning of *Post Quantum Cryptography Algorithms*. As I learn more about these algorithms I intend to add more implementations
 
 I also will be trying to optimize them as much as I can as practice so I'll try to add performance stats.
 
@@ -33,9 +33,14 @@ Thus this ends the intution section and implemented algorithms are listed below:
 ---------
 
 ### Implemented Algorithms:
-[x] - Regev's Proposed Public Key Cryptosystem (Learning With Errors)
-    [x] - String encryption/decryption support
-    [ ] - Benchmarking
+- [x] Regev's LWE PKE {2005}
+    - [x] String encryption/decryption support
+    - [ ] Benchmarking/Analysis
+- [ ] Ring-LWE {2010}
+- [ ] Module-LWE {2017} (basis of [**Kyber**](https://pq-crystals.org/kyber/))
+- [ ] NTRU {1996} 
+- [ ] FN-DSA {2017} (basis of [**Falcon**](https://falcon-sign.info/))
+
 
 ## Descriptions
 
