@@ -1,4 +1,4 @@
-use quant_algos::{LWESystem, PubKeyTy, PrivKeyTy, zq::Zq};
+use quant_algos::{LWESystem, LWEPubKeyTy, LWEPrivKeyTy, zq::Zq};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,14 +62,14 @@ fn compute_sigma(q: u64, m: usize) -> f64 {
     (q as f64) / (16.0 * (m as f64).sqrt())
 }
 
-fn pub_key_bytes(pub_key: &PubKeyTy) -> usize {
+fn pub_key_bytes(pub_key: &LWEPubKeyTy) -> usize {
     pub_key
         .iter()
         .map(|(row, _b)| row.len() * std::mem::size_of::<Zq<u64>>() + std::mem::size_of::<Zq<u64>>())
         .sum()
 }
 
-fn priv_key_bytes(priv_key: &PrivKeyTy) -> usize {
+fn priv_key_bytes(priv_key: &LWEPrivKeyTy) -> usize {
     priv_key.len() * std::mem::size_of::<Zq<u64>>()
 }
 

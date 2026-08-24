@@ -1,32 +1,37 @@
 //use nalgebra as na;
 pub mod zq;
 pub mod bitcodec;
+pub mod ring;
+
 use core::fmt;
 
 use zq::{Zq, dot, add};
+use ring::{Rq};
 use bitcodec::BitCodec;
 use rand::{Rng, thread_rng};
 use rand_distr::{Distribution, Normal};
 
-/// Learning With Errors - Public Key Cryptosystem
+use crate::ring::{sample_error_ring, sample_uniform_ring, encode_bits};
+
+/// Learning With Errors - Public Key Cryptosystem ///
 /// Based on Regev's proposed system in http://portal.acm.org/citation.cfm?id=1060590.1060603
 
-pub type PubKeyTy = Vec<(Vec<Zq<u64>>, Zq<u64>)>;
-pub type PrivKeyTy = Vec<Zq<u64>>;
+pub type LWEPubKeyTy = Vec<(Vec<Zq<u64>>, Zq<u64>)>;
+pub type LWEPrivKeyTy = Vec<Zq<u64>>;
 pub type LWEBitCiphertext = (Vec<Zq<u64>>, Zq<u64>);
 pub type LWEStringCiphertext = Vec<(Vec<Zq<u64>>, Zq<u64>)>;
 
 #[derive(Clone, Copy)]
-pub struct Params {
+pub struct LWEParams {
     n: usize,
     m: usize,
     q: u64
 }
 
 pub struct LWESystem {
-    public_key: PubKeyTy,
-    private_key: PrivKeyTy,
-    params: Params
+    public_key: LWEPubKeyTy,
+    private_key: LWEPrivKeyTy,
+    params: LWEParams
 } 
 
 impl LWESystem {
@@ -42,7 +47,7 @@ impl LWESystem {
         debug_assert!(q as usize >= n*n, "q should be a prime larger than around n^2 (and usually less than 2n^2");
 
         // Private Key Gen: Zq^n generated uniformly at random //
-        let private_key: PrivKeyTy = (0..n).map(|_| Zq::new(rng.gen_range(0..q), q)).collect();
+        let private_key: LWEPrivKeyTy = (0..n).map(|_| Zq::new(rng.gen_range(0..q), q)).collect();
 
         // Public Key Gen: m (n length vector + one error) pairs generated uniformly at random //
         let m_vecs: Vec<Vec<Zq<u64>>> = (0..m)
@@ -63,29 +68,29 @@ impl LWESystem {
             .collect();
 
         //Pack Public Key
-        let public_key: PubKeyTy = m_vecs.into_iter().zip(bs.into_iter()).collect();
+        let public_key: LWEPubKeyTy = m_vecs.into_iter().zip(bs.into_iter()).collect();
         
         //Pack Parameters for Enc and Dec
-        let params = Params {n, m, q};
+        let params = LWEParams {n, m, q};
 
         LWESystem {public_key, private_key, params}
     }
 
     //Expose Public Key (and Parameters) for decryption of Ciphertexts
-    pub fn public_key(&self) -> &PubKeyTy { &self.public_key }
-    pub fn params(&self) -> Params { self.params }
+    pub fn public_key(&self) -> &LWEPubKeyTy { &self.public_key }
+    pub fn params(&self) -> LWEParams { self.params }
 
     //ONLY FOR DEBUGGING/TESTING DO NOT EXPOSE TO PUBLIC
-    pub fn private_key(&self) -> &PrivKeyTy { &self.private_key }
+    pub fn private_key(&self) -> &LWEPrivKeyTy { &self.private_key }
 
     /* --- Encryption and Decryption Functions --- */
     //Encrypt one bit (x_bit=true => x=1 and x_bit=false => x=0)
     //Doesn't require knowledge of private_key
-    pub fn encrypt_bit(public_key: &PubKeyTy, params: Params, x_bit: bool) -> LWEBitCiphertext {
+    pub fn encrypt_bit(public_key: &LWEPubKeyTy, params: LWEParams, x_bit: bool) -> LWEBitCiphertext {
         Self::encrypt_bit_with_rng(&mut thread_rng(), public_key, params, x_bit)
     }
     //Encrypt one bit with custom rng
-    pub fn encrypt_bit_with_rng<R: Rng + ?Sized>(rng: &mut R, public_key: &PubKeyTy, params: Params, x_bit: bool) -> LWEBitCiphertext {
+    pub fn encrypt_bit_with_rng<R: Rng + ?Sized>(rng: &mut R, public_key: &LWEPubKeyTy, params: LWEParams, x_bit: bool) -> LWEBitCiphertext {
         debug_assert_eq!(public_key.len(), params.m, "public key length doesn't match params.m");
         let m: usize = params.m;
         let n: usize = params.n;
@@ -112,7 +117,7 @@ impl LWESystem {
 
     //Encrypt bitvector
     //To encrypt structures/types, encode them with BitCodec: see src/bitcodec.rs
-    pub fn encrypt<BitTy: BitCodec>(public_key: &PubKeyTy, params: Params, bit_data: BitTy) -> Vec<LWEBitCiphertext>{
+    pub fn encrypt<BitTy: BitCodec>(public_key: &LWEPubKeyTy, params: LWEParams, bit_data: BitTy) -> Vec<LWEBitCiphertext>{
         let bitvec = bit_data.to_bits();
         bitvec.iter().map(|&x_bit| Self::encrypt_bit(public_key, params, x_bit)).collect()
     }
@@ -158,4 +163,83 @@ impl fmt::Debug for LWESystem {
     }
 }
 
+
+// End of Regev's Learning with Errors Systems
+
+/// RING - Learning With Errors - Public Key Cryptosystem ///
+
+pub type RingPubKeyTy = (Rq<u64>, Rq<u64>);
+pub type RingPrivKeyTy = Rq<u64>;
+pub type RingCiphertext = (Rq<u64>, Rq<u64>);
+
+#[derive(Clone, Copy, Debug)]
+pub struct RingParams {
+    pub n: usize,
+    pub q: u64,
+    pub sigma: f64,
+}
+
+pub struct RingLWESystem {
+    public_key: RingPubKeyTy,
+    private_key: RingPrivKeyTy,
+    params: RingParams
+} 
+
+impl RingLWESystem {
+    pub fn key_gen(n: usize, q: u64, sigma: f64) -> Self {
+        Self::key_gen_with_rng(&mut thread_rng(), n, q, sigma)
+    }
+
+    pub fn key_gen_with_rng<R: Rng + ?Sized>(rng: &mut R, n: usize, q: u64, sigma: f64) -> Self {
+        debug_assert!(n.is_power_of_two(), "n must be a power of 2 for x^n+1 to be a cyclotomic polynomial");
+
+        let a = sample_uniform_ring(rng, n, q);
+        let sampler = Normal::new(0.0, sigma).expect("sigma must be finite and > 0");
+        let s = sample_error_ring(rng, &sampler, n, q);
+        let e = sample_error_ring(rng, &sampler, n, q);
+        let b = a.mul(&s).add(&e);
+
+        let params = RingParams { n, q, sigma };
+        RingLWESystem {
+            public_key: (a, b),
+            private_key: s,
+            params,
+        }
+    }
+
+    pub fn public_key(&self) -> &RingPubKeyTy {
+        &self.public_key
+    }
+ 
+    pub fn params(&self) -> RingParams {
+        self.params
+    }
+
+    pub fn encrypt(public_key: &RingPubKeyTy, params: RingParams, bits: &[bool]) -> RingCiphertext {
+        Self::encrypt_with_rng(&mut thread_rng(), public_key, params, bits)
+    }
+
+    pub fn encrypt_with_rng<R: Rng + ?Sized>(
+        rng: &mut R,
+        public_key: &RingPubKeyTy,
+        params: RingParams,
+        bits: &[bool],
+    ) -> RingCiphertext {
+        let (a, b) = public_key;
+        let n = params.n;
+        let q = params.q;
+        let sampler = Normal::new(0.0, params.sigma).expect("Sigma should be >= 0");
+ 
+        let r = sample_error_ring(rng, &sampler, n, q);
+        let e1 = sample_error_ring(rng, &sampler, n, q);
+        let e2 = sample_error_ring(rng, &sampler, n, q);
+        let m_prime = encode_bits(bits, n, q);
+ 
+        let u = a.mul(&r).add(&e1);
+        let v = b.mul(&r).add(&e2).add(&m_prime);
+        (u, v)
+    }
+
+
+}
 
